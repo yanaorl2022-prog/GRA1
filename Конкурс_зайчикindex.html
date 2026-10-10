@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заєць-Краєзнавець: Мандрівка Донеччиною</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;800&display=swap');
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .font-heading { font-family: 'Fredoka', cursive; }
+
+        .hole-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+        }
+        @media (min-width: 640px) {
+            .hole-grid { grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+        }
+
+        .game-hole {
+            position: relative;
+            background: #451a03;
+            border: 4px solid #78350f;
+            border-radius: 50% / 40%;
+            box-shadow: inset 0 10px 15px rgba(0,0,0,0.8), 0 5px 0 #270f03;
+            overflow: hidden;
+            aspect-ratio: 1 / 0.8;
+        }
+
+        .carrot-item, .item-obstacle, .item-bonus {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+            font-size: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .item-visible { transform: translateX(-50%) translateY(10%); }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #f97316; border-radius: 4px; }
+
+        /* Toast Notification */
+        .action-toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: rgba(30, 41, 59, 0.95);
+            color: #fff;
+            padding: 14px 28px;
+            border-radius: 9999px;
+            font-size: 15px;
+            font-weight: 600;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s ease;
+            z-index: 99999;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            border: 2px solid #f97316;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .action-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white flex flex-col items-center justify-between p-2 sm:p-4 overflow-x-hidden">
+
+    <!-- Header Controls -->
+    <header class="w-full max-w-4xl flex justify-between items-center bg-slate-800/90 p-3 sm:p-4 rounded-2xl border border-amber-500/30 shadow-lg mb-2 sm:mb-4">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <div class="text-3xl sm:text-4xl">🐰</div>
+            <div>
+                <h1 class="font-heading text-lg sm:text-2xl text-amber-400 font-bold leading-tight">Донбас Екскурсійний</h1>
+                <p class="text-xs sm:text-sm text-slate-300">Гра «Заєць-Краєзнавець» • <span class="text-amber-300 font-semibold">Автор: Роменський Роман</span></p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="soundToggleBtn" onclick="toggleSound()" class="bg-slate-700 hover:bg-slate-600 text-amber-400 p-2.5 rounded-xl border border-amber-500/30 transition flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 text-lg">
+                <i class="fas fa-volume-high" id="soundIcon"></i>
+            </button>
+            <button onclick="showRulesModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-3 sm:px-4 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-1.5 shadow-md">
+                <i class="fas fa-book-open"></i> <span class="hidden sm:inline">Правила</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="w-full max-w-4xl flex-1 flex flex-col justify-center items-center relative">
+        
+        <!-- Game Dashboard -->
+        <div class="w-full bg-slate-900/80 rounded-2xl p-3 sm:p-4 mb-3 sm:mb-4 border border-slate-700/60 shadow-xl flex flex-wrap justify-between items-center gap-2 text-center text-xs sm:text-base">
+            <div class="flex-1 min-w-[80px] bg-slate-800/80 p-2 rounded-xl border border-amber-500/20">
+                <div class="text-amber-400 font-semibold text-[10px] sm:text-xs uppercase tracking-wider">Рівень</div>
+                <div id="levelDisplay" class="font-heading text-lg sm:text-2xl font-bold text-white">1 / 5</div>
+            </div>
+            <div class="flex-1 min-w-[80px] bg-slate-800/80 p-2 rounded-xl border border-amber-500/20">
+                <div class="text-amber-400 font-semibold text-[10px] sm:text-xs uppercase tracking-wider">Зібрано</div>
+                <div id="scoreDisplay" class="font-heading text-lg sm:text-2xl font-bold text-emerald-400">0 / 5</div>
+            </div>
+            <div class="flex-1 min-w-[80px] bg-slate-800/80 p-2 rounded-xl border border-amber-500/20">
+                <div class="text-amber-400 font-semibold text-[10px] sm:text-xs uppercase tracking-wider">Час</div>
+                <div id="timerDisplay" class="font-heading text-lg sm:text-2xl font-bold text-amber-300">30s</div>
+            </div>
+            <div class="flex-1 min-w-[80px] bg-slate-800/80 p-2 rounded-xl border border-amber-500/20">
+                <div class="text-amber-400 font-semibold text-[10px] sm:text-xs uppercase tracking-wider">Життя</div>
+                <div id="livesDisplay" class="font-heading text-lg sm:text-2xl font-bold text-rose-500">❤️❤️❤️</div>
+            </div>
+        </div>
+
+        <!-- Level Info Banner -->
+        <div id="levelBanner" class="w-full bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 mb-3 text-center">
+            <h2 id="levelTitle" class="font-heading text-sm sm:text-lg text-amber-300 font-bold">Рівень 1: Витоки Донеччини</h2>
+            <p id="levelDesc" class="text-xs sm:text-sm text-slate-300">Натискай на моркву, щоб заєць її збирав та відкривав історичні факти!</p>
+        </div>
+
+        <!-- Game Playfield Grid -->
+        <div class="w-full bg-emerald-900/30 border-2 border-emerald-600/30 rounded-3xl p-4 sm:p-6 shadow-2xl relative min-h-[320px] sm:min-h-[420px] flex items-center justify-center">
+            
+            <!-- Start Overlay -->
+            <div id="startOverlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl z-20 flex flex-col items-center justify-center p-4 sm:p-6 text-center overflow-y-auto custom-scroll">
+                <div class="text-5xl sm:text-6xl mb-2 animate-bounce">🥕</div>
+                <h2 class="font-heading text-2xl sm:text-4xl text-amber-400 font-bold mb-1">Заєць-Краєзнавець</h2>
+                <p class="text-xs sm:text-sm text-amber-300 font-semibold mb-3">Автор проєкту: <span class="text-white">Роменський Роман</span></p>
+                
+                <div class="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-3 sm:p-4 mb-4 text-left max-w-lg w-full text-xs sm:text-sm space-y-2">
+                    <h3 class="font-heading text-amber-400 text-sm sm:text-base font-bold flex items-center gap-2 border-b border-slate-700 pb-1.5">
+                        <i class="fas fa-gamepad"></i> Інструкція до гри:
+                    </h3>
+                    <ul class="space-y-1.5 text-slate-200">
+                        <li class="flex items-start gap-2"><span class="text-amber-400">1.</span><span><strong>Збирай моркву (🥕):</strong> Натискай на моркву, що з'являється з норок. Кожна морквина відкриває краєзнавчий факт або питання.</span></li>
+                        <li class="flex items-start gap-2"><span class="text-amber-400">2.</span><span><strong>Уникай каменів (🪨):</strong> Починаючи з 2-го рівня з'являються камені. Натискання на них відбирає 1 життя!</span></li>
+                        <li class="flex items-start gap-2"><span class="text-amber-400">3.</span><span><strong>Лови сувої (📜):</strong> Вони додають +5 секунд до ігрового таймера.</span></li>
+                        <li class="flex items-start gap-2"><span class="text-amber-400">4.</span><span><strong>Пройди 5 рівнів:</strong> З кожним рівнем морква з'являється швидше, а часу стає менше!</span></li>
+                    </ul>
+                </div>
+
+                <button onclick="startGame()" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-heading text-lg sm:text-xl font-bold px-8 py-3 rounded-2xl shadow-lg transform hover:scale-105 transition mb-3 w-full max-w-xs">
+                    <i class="fas fa-play mr-2"></i> Розпочати Мандрівку
+                </button>
+                <button onclick="downloadGame()" class="w-full max-w-xs bg-slate-800/80 hover:bg-slate-700 text-amber-400 font-heading text-sm font-bold py-2.5 rounded-xl shadow-lg transition border border-amber-500/30 flex items-center justify-center gap-2 mx-auto">
+                    <i class="fas fa-download"></i> Завантажити гру собі
+                </button>
+            </div>
+
+            <!-- Hole Grid -->
+            <div id="holeGrid" class="hole-grid w-full"></div>
+        </div>
+    </main>
+
+    <!-- Educational Fact Modal / Quiz Modal -->
+    <div id="factModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-30 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-5 sm:p-7 border-2 border-amber-500/50 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between mb-4 border-b border-slate-700/80 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-3xl">📜</span>
+                    <h3 id="modalHeader" class="font-heading text-lg sm:text-xl text-amber-400 font-bold">Краєзнавча довідка</h3>
+                </div>
+                <span id="factBadge" class="bg-amber-500/20 text-amber-300 text-xs px-2.5 py-1 rounded-full font-semibold border border-amber-500/30">Факт</span>
+            </div>
+            <div id="modalContent" class="overflow-y-auto custom-scroll pr-1 flex-1 mb-5"></div>
+            <button id="modalActionBtn" onclick="closeFactModal()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-heading text-base sm:text-lg font-bold py-3 rounded-2xl shadow-lg transition">
+                Продовжити мандрівку <i class="fas fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over / Victory Modal -->
+    <div id="gameOverModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 sm:p-8 text-center border-2 border-amber-500/50 shadow-2xl">
+            <div id="endIcon" class="text-6xl mb-3">🏆</div>
+            <h2 id="endTitle" class="font-heading text-2xl sm:text-3xl text-amber-400 font-bold mb-2">Перемога!</h2>
+            <p id="endDesc" class="text-slate-300 text-sm sm:text-base mb-6">Ви успішно пройшли всі рівні експедиції!</p>
+            
+            <div class="bg-slate-800/80 rounded-2xl p-4 mb-6 border border-slate-700 text-left space-y-2 text-sm">
+                <div class="flex justify-between text-slate-300"><span>Пройдено рівнів:</span><span id="finalLevels" class="font-bold text-amber-400">5 / 5</span></div>
+                <div class="flex justify-between text-slate-300"><span>Зібрано моркви:</span><span id="finalScore" class="font-bold text-emerald-400">0</span></div>
+                <div class="flex justify-between text-slate-300"><span>Вивчено фактів:</span><span id="finalFacts" class="font-bold text-cyan-400">0</span></div>
+            </div>
+
+            <button onclick="restartGame()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-heading text-lg font-bold py-3.5 rounded-2xl shadow-lg transition mb-3">
+                <i class="fas fa-rotate-right mr-2"></i> Грати Знову
+            </button>
+            <button onclick="shareResult()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-heading text-lg font-bold py-3.5 rounded-2xl shadow-lg transition mb-3 flex items-center justify-center gap-2">
+                <i class="fas fa-share-nodes"></i> Поділитися результатом
+            </button>
+            <button onclick="downloadGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-amber-400 font-heading text-base font-bold py-3 rounded-2xl shadow-lg transition border border-amber-500/30 flex items-center justify-center gap-2">
+                <i class="fas fa-download"></i> Завантажити гру (.html)
+            </button>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-6 border border-slate-700 shadow-2xl">
+            <h3 class="font-heading text-2xl text-amber-400 font-bold mb-2 flex items-center gap-2">
+                <i class="fas fa-circle-info"></i> Правила та інформація
+            </h3>
+            <p class="text-xs text-amber-300 font-semibold mb-4">Автор розробки: Роменський Роман</p>
+            <div class="text-slate-300 text-xs sm:text-sm space-y-3 leading-relaxed mb-6 max-h-[60vh] overflow-y-auto custom-scroll pr-2">
+                <p>Ласкаво просимо до навчальної гри <strong>«Заєць-Краєзнавець: Мандрівка Донеччиною»</strong>, створеної для конкурсу «Навчальні online ігри» в рамках експедиції «Донбас екскурсійний»!</p>
+                <div class="bg-slate-800/60 p-3 rounded-xl border-l-4 border-amber-500">
+                    <h4 class="font-bold text-amber-400 mb-1">Детальні правила:</h4>
+                    <ul class="list-disc list-inside space-y-1 text-slate-200">
+                        <li><strong>Ціль:</strong> Пройти всі 5 рівнів, зібравши необхідну кількість моркви.</li>
+                        <li><strong>Швидкість:</strong> На кожному новому рівні елементи з'являються швидше.</li>
+                        <li><strong>Вікторина:</strong> Кожна морквина покаже картку про історію чи природу Донеччини.</li>
+                        <li><strong>Життя:</strong> На початку гри надається 3 життя (❤️). Втрачаються при кліку на каміння.</li>
+                    </ul>
+                </div>
+                <p>Гра сприяє патріотичному вихованню та інтеграції краєзнавчої спадщини Донецької області у віртуальний освітній простір.</p>
+            </div>
+            <button onclick="closeRulesModal()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-heading font-bold py-3 rounded-2xl shadow-lg transition">
+                Зрозуміло
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full text-center text-slate-500 text-xs py-4">
+        Автор: Роменський Роман • Донецький обласний центр туризму та краєзнавства учнівської молоді © 2026
+    </footer>
+
+    <!-- Toast Notification -->
+    <div id="actionToast" class="action-toast">
+        <i class="fas fa-check-circle text-emerald-400"></i>
+        <span id="toastMessage">Повідомлення</span>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        const gameState = {
+            isPlaying: false,
+            currentLevel: 1,
+            scoreInLevel: 0,
+            totalCarrotsCollected: 0,
+            factsUnlocked: 0,
+            lives: 3,
+            timeLeft: 30,
+            activeTimer: null,
+            spawnTimer: null,
+            currentModalCallback: null,
+            usedKnowledgeIndices: new Set(),
+            soundEnabled: true
+        };
+
+        const LEVEL_CONFIGS = {
+            1: { targetScore: 5, time: 30, spawnRate: 1500, visibleDuration: 1200, holes: 9, title: "Витоки Донеччини", desc: "Сіверський Донець, Святогірськ та перші поселення." },
+            2: { targetScore: 7, time: 35, spawnRate: 1300, visibleDuration: 1000, holes: 9, title: "Промислове серце", desc: "Вугілля, металургія та заснування Юзівки." },
+            3: { targetScore: 9, time: 40, spawnRate: 1100, visibleDuration: 900, holes: 12, title: "Видатні особистості", desc: "Прокоф'єв, Бабель, Куїнджі та інші видатні уродженці." },
+            4: { targetScore: 11, time: 45, spawnRate: 900, visibleDuration: 800, holes: 12, title: "Природа та заповідники", desc: "Хомутовський степ, Меотида та унікальна флора." },
+            5: { targetScore: 13, time: 50, spawnRate: 750, visibleDuration: 700, holes: 12, title: "Незламна Донеччина", desc: "Краматорськ, Слов'янськ, культурна спадщина та майбутнє." }
+        };
+
+        const KNOWLEDGE_BASE = [
+            { level: 1, type: 'fact', title: "Святогірська лавра", text: "Святогірська Свято-Успенська лавра розташована на крейдяних скелях над Сіверським Донцем. Це один із найдавніших духовних центрів Донеччини, відомий з XVI століття." },
+            { level: 1, type: 'quiz', question: "Яка річка є найбільшою на Донеччині?", options: ["Дніпро", "Сіверський Донець", "Південний Буг", "Десна"], correct: 1, explanation: "Сіверський Донець — найбільша річка області, її називають 'блакитною перлиною Донбасу'." },
+            { level: 2, type: 'fact', title: "Заснування Юзівки", text: "У 1869 році валлійський підприємець Джон Юз заснував металургійний завод і поселення, яке згодом стало містом Донецьк. Спочатку воно називалося Юзівка на його честь." },
+            { level: 2, type: 'quiz', question: "Яку культуру традиційно видобували на Донбасі?", options: ["Бавовну", "Вугілля", "Цукровий буряк", "Рис"], correct: 1, explanation: "Донбас (Донецький кам'яновугільний басейн) історично є головним регіоном видобутку кам'яного вугілля в Україні." },
+            { level: 3, type: 'fact', title: "Сергій Прокоф'єв", text: "Видатний композитор XX століття Сергій Прокоф'єв народився в селі Сонцівка (нині Красне) на Донеччині. Його ім'я носить Донецька державна музична академія." },
+            { level: 3, type: 'quiz', question: "Хто з цих художників народився на Донеччині (м. Маріуполь)?", options: ["Тарас Шевченко", "Архип Куїнджі", "Казимир Малевич", "Ілля Рєпін"], correct: 1, explanation: "Архип Куїнджі, відомий майстер пейзажу ('Місячна ніч на Дніпрі'), народився в Маріуполі." },
+            { level: 4, type: 'fact', title: "Хомутовський степ", text: "Філія 'Хомутовський степ' Донецького ботанічного саду НАН України — це унікальна ділянка незайманого степу з рідкісними видами рослин, зокрема ковилою." },
+            { level: 4, type: 'quiz', question: "Який національний природний парк розташований на узбережжі Азовського моря?", options: ["Святі Гори", "Меотида", "Шацький", "Синевир"], correct: 1, explanation: "Національний природний парк 'Меотида' створений для збереження унікальних приазовських ландшафтів." },
+            { level: 5, type: 'fact', title: "Краматорськ — місто-герой", text: "Краматорськ є важливим промисловим та культурним центром Донеччини. Місто відоме своїм машинобудуванням та незламністю духу його мешканців." },
+            { level: 5, type: 'quiz', question: "Який символ є на гербі міста Слов'янськ?", options: ["Вугільна шахта", "Соляна копальня", "Козак з мушкетом", "Морський корабель"], correct: 1, explanation: "Слов'янськ історично відомий своїми соляними промислами та бальнеологічними курортами." }
+        ];
+
+        // --- INITIALIZATION ---
+        function initGrid() {
+            const grid = document.getElementById('holeGrid');
+            grid.innerHTML = '';
+            const holesCount = LEVEL_CONFIGS[gameState.currentLevel].holes;
+            for (let i = 0; i < holesCount; i++) {
+                const hole = document.createElement('div');
+                hole.className = 'game-hole';
+                hole.dataset.index = i;
+                grid.appendChild(hole);
+            }
+        }
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            gameState.currentLevel = 1;
+            gameState.totalCarrotsCollected = 0;
+            gameState.factsUnlocked = 0;
+            gameState.lives = 3;
+            gameState.usedKnowledgeIndices.clear();
+            document.getElementById('startOverlay').classList.add('hidden');
+            startLevel(1);
+        }
+
+        function startLevel(level) {
+            gameState.currentLevel = level;
+            gameState.scoreInLevel = 0;
+            gameState.timeLeft = LEVEL_CONFIGS[level].time;
+            gameState.isPlaying = true;
+            
+            initGrid();
+            updateUI();
+            
+            document.getElementById('levelTitle').innerText = `Рівень ${level}: ${LEVEL_CONFIGS[level].title}`;
+            document.getElementById('levelDesc').innerText = LEVEL_CONFIGS[level].desc;
+
+            if (gameState.activeTimer) clearInterval(gameState.activeTimer);
+            gameState.activeTimer = setInterval(() => {
+                gameState.timeLeft--;
+                updateUI();
+                if (gameState.timeLeft <= 0) handleTimeOut();
+            }, 1000);
+
+            if (gameState.spawnTimer) clearInterval(gameState.spawnTimer);
+            gameState.spawnTimer = setInterval(spawnItem, LEVEL_CONFIGS[level].spawnRate);
+        }
+
+        function spawnItem() {
+            if (!gameState.isPlaying) return;
+            const holes = document.querySelectorAll('.game-hole');
+            const availableHoles = Array.from(holes).filter(h => h.children.length === 0);
+            if (availableHoles.length === 0) return;
+
+            const randomHole = availableHoles[Math.floor(Math.random() * availableHoles.length)];
+            const config = LEVEL_CONFIGS[gameState.currentLevel];
+            
+            const rand = Math.random();
+            let item = document.createElement('div');
+            
+            if (gameState.currentLevel >= 2 && rand < 0.25) {
+                item.className = 'item-obstacle';
+                item.innerText = '🪨';
+                item.onclick = () => hitObstacle(randomHole, item);
+            } else if (rand < 0.35) {
+                item.className = 'item-bonus';
+                item.innerText = '📜';
+                item.onclick = () => collectBonus(randomHole, item);
+            } else {
+                item.className = 'carrot-item';
+                item.innerText = '🥕';
+                item.onclick = () => collectCarrot(randomHole, item);
+            }
+
+            randomHole.appendChild(item);
+            requestAnimationFrame(() => item.classList.add('item-visible'));
+
+            setTimeout(() => {
+                if (item.parentNode === randomHole) {
+                    item.classList.remove('item-visible');
+                    setTimeout(() => { if (item.parentNode === randomHole) randomHole.removeChild(item); }, 250);
+                }
+            }, config.visibleDuration);
+        }
+
+        function collectCarrot(holeEl, item) {
+            if (!gameState.isPlaying) return;
+            holeEl.removeChild(item);
+            gameState.scoreInLevel++;
+            gameState.totalCarrotsCollected++;
+            updateUI();
+            pauseGame();
+            showEducationalFact();
+        }
+
+        function hitObstacle(holeEl, item) {
+            if (!gameState.isPlaying) return;
+            holeEl.removeChild(item);
+            gameState.lives--;
+            updateUI();
+            document.body.classList.add('bg-rose-950');
+            setTimeout(() => document.body.classList.remove('bg-rose-950'), 200);
+            if (gameState.lives <= 0) endGame(false, "У вас закінчилися життя! Будьте обачнішими з перешкодами.");
+        }
+
+        function collectBonus(holeEl, item) {
+            if (!gameState.isPlaying) return;
+            holeEl.removeChild(item);
+            gameState.timeLeft += 5;
+            updateUI();
+            const floatTxt = document.createElement('div');
+            floatTxt.className = 'absolute font-heading font-bold text-amber-300 text-lg animate-bounce z-10';
+            floatTxt.innerText = '+5 сек!';
+            holeEl.appendChild(floatTxt);
+            setTimeout(() => { if (holeEl.contains(floatTxt)) holeEl.removeChild(floatTxt); }, 1000);
+        }
+
+        function pauseGame() {
+            gameState.isPlaying = false;
+            if (gameState.activeTimer) clearInterval(gameState.activeTimer);
+            if (gameState.spawnTimer) clearInterval(gameState.spawnTimer);
+        }
+
+        function resumeGame() {
+            gameState.isPlaying = true;
+            gameState.activeTimer = setInterval(() => {
+                gameState.timeLeft--;
+                updateUI();
+                if (gameState.timeLeft <= 0) handleTimeOut();
+            }, 1000);
+            gameState.spawnTimer = setInterval(spawnItem, LEVEL_CONFIGS[gameState.currentLevel].spawnRate);
+        }
+
+        function updateUI() {
+            document.getElementById('levelDisplay').innerText = `${gameState.currentLevel} / 5`;
+            document.getElementById('scoreDisplay').innerText = `${gameState.scoreInLevel} / ${LEVEL_CONFIGS[gameState.currentLevel].targetScore}`;
+            document.getElementById('timerDisplay').innerText = `${gameState.timeLeft}s`;
+            document.getElementById('livesDisplay').innerText = '❤️'.repeat(Math.max(0, gameState.lives));
+        }
+
+        // --- MODAL & KNOWLEDGE LOGIC ---
+        function getFactForCurrentLevel() {
+            const available = KNOWLEDGE_BASE.map((item, idx) => ({ ...item, originalIdx: idx }))
+                .filter(item => item.level === gameState.currentLevel && !gameState.usedKnowledgeIndices.has(item.originalIdx));
+            
+            if (available.length === 0) {
+                const levelItems = KNOWLEDGE_BASE.filter(item => item.level === gameState.currentLevel);
+                return levelItems[Math.floor(Math.random() * levelItems.length)];
+            }
+            const chosen = available[Math.floor(Math.random() * available.length)];
+            gameState.usedKnowledgeIndices.add(chosen.originalIdx);
+            return chosen;
+        }
+
+        function showEducationalFact() {
+            const data = getFactForCurrentLevel();
+            gameState.factsUnlocked++;
+            const modalHeader = document.getElementById('modalHeader');
+            const modalContent = document.getElementById('modalContent');
+            const factBadge = document.getElementById('factBadge');
+            const actionBtn = document.getElementById('modalActionBtn');
+
+            modalContent.innerHTML = '';
+
+            if (data.type === 'fact') {
+                modalHeader.innerText = data.title || "Краєзнавча Довідка";
+                factBadge.innerText = "Історичний факт";
+                factBadge.className = "bg-amber-500/20 text-amber-300 text-xs px-2.5 py-1 rounded-full font-semibold border border-amber-500/30";
+                modalContent.innerHTML = `<div class="text-center my-3"><div class="text-5xl mb-3">🏛️</div><p class="text-slate-200 text-base sm:text-lg leading-relaxed font-medium">${data.text}</p></div>`;
+                actionBtn.style.display = 'block';
+                gameState.currentModalCallback = () => checkLevelCompletion();
+            } else if (data.type === 'quiz') {
+                modalHeader.innerText = "Краєзнавча Вікторина";
+                factBadge.innerText = "Питання";
+                factBadge.className = "bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-1 rounded-full font-semibold border border-cyan-500/30";
+                actionBtn.style.display = 'none';
+                
+                let optionsHTML = '';
+                data.options.forEach((opt, i) => {
+                    optionsHTML += `<button onclick="handleQuizAnswer(${i}, ${data.correct}, '${data.explanation.replace(/'/g, "\\'")}')" class="quiz-opt-btn w-full text-left bg-slate-800 hover:bg-slate-700 border border-slate-600/80 hover:border-amber-400 p-3.5 rounded-xl transition text-slate-200 font-semibold text-sm sm:text-base flex items-center justify-between mb-2"><span>${opt}</span><i class="fas fa-chevron-right text-slate-400 text-xs"></i></button>`;
+                });
+                modalContent.innerHTML = `<div class="mb-4"><p class="text-slate-100 font-bold text-base sm:text-lg mb-4 leading-snug">${data.question}</p><div class="space-y-2.5">${optionsHTML}</div><div id="quizFeedback" class="mt-4 p-3 rounded-xl hidden text-sm font-semibold"></div></div>`;
+            }
+            document.getElementById('factModal').classList.remove('hidden');
+        }
+
+        function handleQuizAnswer(selectedIdx, correctIdx, explanation) {
+            const feedbackEl = document.getElementById('quizFeedback');
+            const btns = document.querySelectorAll('.quiz-opt-btn');
+            btns.forEach(btn => btn.onclick = null);
+
+            if (selectedIdx === correctIdx) {
+                btns[selectedIdx].classList.remove('bg-slate-800', 'border-slate-600/80');
+                btns[selectedIdx].classList.add('bg-emerald-900/60', 'border-emerald-500', 'text-emerald-300');
+                feedbackEl.className = 'mt-4 p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm';
+                feedbackEl.innerHTML = `<i class="fas fa-circle-check mr-1.5 text-base"></i> <strong>Вірно!</strong> ${explanation}`;
+            } else {
+                btns[selectedIdx].classList.remove('bg-slate-800', 'border-slate-600/80');
+                btns[selectedIdx].classList.add('bg-rose-950/60', 'border-rose-500', 'text-rose-300');
+                btns[correctIdx].classList.remove('bg-slate-800');
+                btns[correctIdx].classList.add('bg-emerald-900/40', 'border-emerald-500/50', 'text-emerald-300');
+                feedbackEl.className = 'mt-4 p-3 rounded-xl bg-rose-950/80 border border-rose-500/50 text-rose-300 text-xs sm:text-sm';
+                feedbackEl.innerHTML = `<i class="fas fa-circle-xmark mr-1.5 text-base"></i> <strong>Не зовсім так!</strong> ${explanation}`;
+            }
+            
+            // FIX: Завершуємо обірваний фрагмент коду
+            feedbackEl.classList.remove('hidden');
+            const actionBtn = document.getElementById('modalActionBtn');
+            actionBtn.style.display = 'block';
+            actionBtn.innerHTML = 'Продовжити мандрівку <i class="fas fa-arrow-right ml-2"></i>';
+            gameState.currentModalCallback = () => checkLevelCompletion();
+        }
+
+        function closeFactModal() {
+            document.getElementById('factModal').classList.add('hidden');
+            if (gameState.currentModalCallback) {
+                const cb = gameState.currentModalCallback;
+                gameState.currentModalCallback = null;
+                cb();
+            } else {
+                resumeGame();
+            }
+        }
+
+        function checkLevelCompletion() {
+            const config = LEVEL_CONFIGS[gameState.currentLevel];
+            if (gameState.scoreInLevel >= config.targetScore) {
+                if (gameState.currentLevel < 5) {
+                    startLevel(gameState.currentLevel + 1);
+                } else {
+                    endGame(true, "Вітаємо! Ви проявили виняткову ерудицію та швидкість і пройшли всі 5 рівнів експедиції!");
+                }
+            } else {
+                resumeGame();
+            }
+        }
+
+        function handleTimeOut() {
+            pauseGame();
+            endGame(false, "Час вичерпано! Заєць не встиг зібрати достатньо моркви для завершення експедиції.");
+        }
+
+        function endGame(isVictory, message) {
+            pauseGame();
+            const modal = document.getElementById('gameOverModal');
+            const endIcon = document.getElementById('endIcon');
+            const endTitle = document.getElementById('endTitle');
+            const endDesc = document.getElementById('endDesc');
+
+            if (isVictory) {
+                endIcon.innerText = "🏆";
+                endTitle.innerText = "Видатна Перемога!";
+                endTitle.className = "font-heading text-2xl sm:text-3xl text-amber-400 font-bold mb-2";
+            } else {
+                endIcon.innerText = "⌛";
+                endTitle.innerText = "Експедицію завершено";
+                endTitle.className = "font-heading text-2xl sm:text-3xl text-rose-400 font-bold mb-2";
+            }
+            endDesc.innerText = message;
+            document.getElementById('finalLevels').innerText = `${gameState.currentLevel} / 5`;
+            document.getElementById('finalScore').innerText = gameState.totalCarrotsCollected;
+            document.getElementById('finalFacts').innerText = gameState.factsUnlocked;
+            modal.classList.remove('hidden');
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverModal').classList.add('hidden');
+            startGame();
+        }
+
+        // --- UI HELPERS ---
+        function showRulesModal() { document.getElementById('rulesModal').classList.remove('hidden'); }
+        function closeRulesModal() { document.getElementById('rulesModal').classList.add('hidden'); }
+        function toggleSound() {
+            gameState.soundEnabled = !gameState.soundEnabled;
+            document.getElementById('soundIcon').className = gameState.soundEnabled ? 'fas fa-volume-high' : 'fas fa-volume-xmark';
+        }
+
+        // --- NEW FEATURES: SHARE & DOWNLOAD ---
+        function downloadGame() {
+            try {
+                const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+                const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Zaychyk-Kraeznavets.html';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                showToast('✅ Гру успішно завантажено!');
+            } catch (err) {
+                console.error('Помилка завантаження:', err);
+                showToast('❌ Помилка завантаження файлу');
+            }
+        }
+
+        function shareResult() {
+            const endTitle = document.getElementById('endTitle').innerText;
+            const isVictory = endTitle.includes('Перемога');
+            const emoji = isVictory ? '🏆' : '😢';
+            const title = isVictory ? 'Я успішно пройшов усі рівні!' : 'Спробуй пройти краще!';
+            
+            const levels = document.getElementById('finalLevels').innerText;
+            const carrots = document.getElementById('finalScore').innerText;
+            const facts = document.getElementById('finalFacts').innerText;
+
+            const text = `${emoji} Заєць-Краєзнавець: Мандрівка Донеччиною\n${title}\n\n🗺️ Рівнів пройдено: ${levels}\n🥕 Зібрано моркви: ${carrots}\n📖 Вивчено фактів: ${facts}\n\n🐰 Грай теж → ${window.location.href}\n\n#ЗаєцьКраєзнавець #Донеччина #ДонбасЕкскурсійний #РоменськийРоман`;
+
+            if (navigator.share) {
+                navigator.share({ title: 'Заєць-Краєзнавець: Результат', text: text }).catch(() => copyToClipboard(text));
+            } else {
+                copyToClipboard(text);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('✅ Результат скопійовано в буфер обміну!');
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('✅ Результат скопійовано!');
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('actionToast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>
